@@ -51,6 +51,10 @@
     top: 0;
     right: 100%;
     margin-right: 8px;
+    max-width: min(260px, calc(100vw - 32px));
+    max-height: min(70vh, 420px);
+    overflow-y: auto;
+    box-sizing: border-box;
     background: #fff;
     border-radius: 4px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.3);
@@ -72,11 +76,21 @@
   #terrain-exaggeration-slider:disabled { opacity: 0.4; }
 
   .attribution-panel {
-    max-width: 220px;
+    width: 260px;
     font-size: 12px;
     color: #333;
-    white-space: normal;
   }
+  .attribution-panel h4 {
+    margin: 0 0 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #888;
+  }
+  .attribution-panel section + section { margin-top: 10px; }
+  .attribution-panel p { margin: 0 0 6px; }
+  .attribution-panel p:last-child { margin-bottom: 0; }
+  .attribution-panel a { color: #0366d6; }
 
   .info-ctrl-button {
     display: flex;
@@ -211,7 +225,18 @@
 
       this._panel = document.createElement('div');
       this._panel.className = 'ctrl-popover attribution-panel';
-      this._panel.innerHTML = this._attributions.join(' | ');
+      this._panel.innerHTML = `
+        <section>
+          <h4>Data &amp; imagery</h4>
+          <p>${this._attributions.join(' | ')}</p>
+        </section>
+        <section>
+          <h4>How this was built</h4>
+          <p>A single static page using <a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre GL JS</a> to render 3D terrain in the browser &mdash; no server and no API keys.</p>
+          <p>Terrain comes from AWS's open Terrarium elevation tiles, imagery from Esri World Imagery, and roads/place labels from OpenStreetMap data served by <a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a>. Place search uses the free <a href="https://photon.komoot.io/" target="_blank" rel="noopener">Photon</a> geocoder.</p>
+          <p>Source on <a href="https://github.com/rsignell/geolibre" target="_blank" rel="noopener">GitHub</a>.</p>
+        </section>
+      `;
 
       this._button.addEventListener('click', () => {
         this._panel.classList.toggle('open');
