@@ -43,6 +43,26 @@
   #search-results div:last-child { border-bottom: none; }
   #search-results div:hover { background: #f0f0f0; }
   #search-results .sub { color: #777; font-size: 12px; }
+
+  #exaggeration {
+    position: absolute;
+    bottom: 30px;
+    left: 10px;
+    z-index: 1;
+    background: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  #exaggeration label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  #exaggeration input {
+    width: 180px;
+  }
 </style>
 </head>
 <body>
@@ -50,17 +70,33 @@
   <input id="search-input" type="text" placeholder="Search for a place&hellip;" autocomplete="off" />
   <div id="search-results"></div>
 </div>
+<div id="exaggeration">
+  <label for="exaggeration-slider">Vertical exaggeration <span id="exaggeration-value">1.5&times;</span></label>
+  <input id="exaggeration-slider" type="range" min="0" max="5" step="0.1" value="1.5" />
+</div>
 <div id="map"></div>
 <script>
+  const DEFAULT_EXAGGERATION = 1.5;
   const map = new maplibregl.Map({
     container: 'map',
     style: 'us-3d-terrain.json',
     hash: true
   });
   map.addControl(new maplibregl.NavigationControl());
-  map.addControl(new maplibregl.TerrainControl({ source: 'terrain-dem', exaggeration: 1.5 }));
+  map.addControl(new maplibregl.TerrainControl({ source: 'terrain-dem', exaggeration: DEFAULT_EXAGGERATION }));
   map.on('load', () => {
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+    map.setTerrain({ source: 'terrain-dem', exaggeration: DEFAULT_EXAGGERATION });
+  });
+
+  // --- Vertical exaggeration slider ---
+  const exaggerationSlider = document.getElementById('exaggeration-slider');
+  const exaggerationValue = document.getElementById('exaggeration-value');
+  exaggerationSlider.addEventListener('input', () => {
+    const value = parseFloat(exaggerationSlider.value);
+    exaggerationValue.textContent = `${value.toFixed(1)}×`;
+    if (map.getTerrain()) {
+      map.setTerrain({ source: 'terrain-dem', exaggeration: value });
+    }
   });
 
   // --- Place search (Photon geocoder, no API key required) ---
