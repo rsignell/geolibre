@@ -44,24 +44,38 @@
   #search-results div:hover { background: #f0f0f0; }
   #search-results .sub { color: #777; font-size: 12px; }
 
-  #exaggeration {
+  /* Shared popover panel for the custom top-right controls */
+  .ctrl-popover {
+    display: none;
     position: absolute;
-    bottom: 30px;
-    left: 10px;
-    z-index: 1;
+    top: 0;
+    right: 100%;
+    margin-right: 8px;
     background: #fff;
-    padding: 8px 12px;
     border-radius: 4px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    padding: 10px 12px;
     font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  #exaggeration label {
+  .ctrl-popover.open { display: block; }
+
+  .terrain-menu-panel { width: 200px; }
+  .terrain-menu-row {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    margin-bottom: 4px;
+    gap: 8px;
   }
-  #exaggeration input {
-    width: 180px;
+  .terrain-menu-row + .terrain-menu-row { margin-top: 8px; }
+  .terrain-menu-value { color: #555; white-space: nowrap; }
+  #terrain-exaggeration-slider { flex: 1; }
+  #terrain-exaggeration-slider:disabled { opacity: 0.4; }
+
+  .attribution-panel {
+    max-width: 220px;
+    font-size: 12px;
+    color: #333;
+    white-space: normal;
   }
 </style>
 </head>
@@ -70,33 +84,153 @@
   <input id="search-input" type="text" placeholder="Search for a place&hellip;" autocomplete="off" />
   <div id="search-results"></div>
 </div>
-<div id="exaggeration">
-  <label for="exaggeration-slider">Vertical exaggeration <span id="exaggeration-value">1.5&times;</span></label>
-  <input id="exaggeration-slider" type="range" min="0" max="5" step="0.1" value="1.5" />
-</div>
 <div id="map"></div>
 <script>
   const DEFAULT_EXAGGERATION = 1.5;
+
+  // --- Custom terrain control: mountain icon that opens an on/off + exaggeration menu ---
+  class TerrainMenuControl {
+    constructor({ source, exaggeration }) {
+      this._source = source;
+      this._exaggeration = exaggeration;
+      this._enabled = true;
+    }
+
+    onAdd(map) {
+      this._map = map;
+
+      this._container = document.createElement('div');
+      this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+
+      this._button = document.createElement('button');
+      this._button.type = 'button';
+      this._button.title = 'Terrain settings';
+      this._button.className = 'maplibregl-ctrl-terrain maplibregl-ctrl-terrain-enabled';
+      const icon = document.createElement('span');
+      icon.className = 'maplibregl-ctrl-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      this._button.appendChild(icon);
+
+      this._panel = document.createElement('div');
+      this._panel.className = 'ctrl-popover terrain-menu-panel';
+      this._panel.innerHTML = `
+        <div class="terrain-menu-row">
+          <label for="terrain-enabled-toggle">Terrain</label>
+          <input id="terrain-enabled-toggle" type="checkbox" checked />
+        </div>
+        <div class="terrain-menu-row">
+          <label for="terrain-exaggeration-slider">Exaggeration</label>
+          <span class="terrain-menu-value" id="terrain-exaggeration-value">${this._exaggeration.toFixed(1)}&times;</span>
+        </div>
+        <div class="terrain-menu-row">
+          <input id="terrain-exaggeration-slider" type="range" min="1" max="5" step="0.1" value="${this._exaggeration}" />
+        </div>
+      `;
+
+      this._button.addEventListener('click', () => {
+        this._panel.classList.toggle('open');
+      });
+      document.addEventListener('click', (e) => {
+        if (!this._container.contains(e.target)) {
+          this._panel.classList.remove('open');
+        }
+      });
+
+      this._container.appendChild(this._button);
+      this._container.appendChild(this._panel);
+
+      const toggle = this._panel.querySelector('#terrain-enabled-toggle');
+      const slider = this._panel.querySelector('#terrain-exaggeration-slider');
+      const valueLabel = this._panel.querySelector('#terrain-exaggeration-value');
+
+      toggle.addEventListener('change', () => {
+        this._enabled = toggle.checked;
+        slider.disabled = !this._enabled;
+        this._button.classList.toggle('maplibregl-ctrl-terrain-enabled', this._enabled);
+        this._apply();
+      });
+
+      slider.addEventListener('input', () => {
+        this._exaggeration = parseFloat(slider.value);
+        valueLabel.textContent = `${this._exaggeration.toFixed(1)}×`;
+        this._apply();
+      });
+
+      return this._container;
+    }
+
+    onRemove() {
+      this._container.remove();
+      this._map = undefined;
+    }
+
+    _apply() {
+      if (this._enabled) {
+        this._map.setTerrain({ source: this._source, exaggeration: this._exaggeration });
+      } else {
+        this._map.setTerrain(null);
+      }
+    }
+  }
+
+  // --- Custom attribution control: compact "i" icon with a text popover ---
+  class InfoControl {
+    constructor(attributions) {
+      this._attributions = attributions;
+    }
+
+    onAdd(map) {
+      this._map = map;
+
+      this._container = document.createElement('div');
+      this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+
+      this._button = document.createElement('button');
+      this._button.type = 'button';
+      this._button.title = 'Attribution';
+      this._button.setAttribute('aria-label', 'Toggle attribution');
+      this._button.className = 'maplibregl-ctrl-attrib-button';
+
+      this._panel = document.createElement('div');
+      this._panel.className = 'ctrl-popover attribution-panel';
+      this._panel.innerHTML = this._attributions.join(' | ');
+
+      this._button.addEventListener('click', () => {
+        this._panel.classList.toggle('open');
+      });
+      document.addEventListener('click', (e) => {
+        if (!this._container.contains(e.target)) {
+          this._panel.classList.remove('open');
+        }
+      });
+
+      this._container.appendChild(this._button);
+      this._container.appendChild(this._panel);
+      return this._container;
+    }
+
+    onRemove() {
+      this._container.remove();
+      this._map = undefined;
+    }
+  }
+
   const map = new maplibregl.Map({
     container: 'map',
     style: 'us-3d-terrain.json',
-    hash: true
+    hash: true,
+    attributionControl: false
   });
   map.addControl(new maplibregl.NavigationControl());
-  map.addControl(new maplibregl.TerrainControl({ source: 'terrain-dem', exaggeration: DEFAULT_EXAGGERATION }));
+  map.addControl(new TerrainMenuControl({ source: 'terrain-dem', exaggeration: DEFAULT_EXAGGERATION }));
+  map.addControl(new InfoControl([
+    '© OpenStreetMap contributors',
+    'Esri, Maxar, Earthstar Geographics',
+    'AWS Terrain Tiles (Mapzen/Nextzen), USGS, NASA'
+  ]));
+
   map.on('load', () => {
     map.setTerrain({ source: 'terrain-dem', exaggeration: DEFAULT_EXAGGERATION });
-  });
-
-  // --- Vertical exaggeration slider ---
-  const exaggerationSlider = document.getElementById('exaggeration-slider');
-  const exaggerationValue = document.getElementById('exaggeration-value');
-  exaggerationSlider.addEventListener('input', () => {
-    const value = parseFloat(exaggerationSlider.value);
-    exaggerationValue.textContent = `${value.toFixed(1)}×`;
-    if (map.getTerrain()) {
-      map.setTerrain({ source: 'terrain-dem', exaggeration: value });
-    }
   });
 
   // --- Place search (Photon geocoder, no API key required) ---
